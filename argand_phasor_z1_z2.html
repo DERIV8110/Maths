@@ -1,0 +1,187 @@
+
+<style>
+canvas { display: block; }
+.lbl { font-size: 13px; color: var(--color-text-secondary); font-family: var(--font-sans); }
+.val { font-size: 13px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-mono); min-width: 48px; }
+.row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+</style>
+
+<canvas id="c" width="640" height="420"></canvas>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px;">
+  <div>
+    <div class="row"><span class="dot" style="background:#378ADD"></span><span class="lbl">z₁ — angle θ₁</span></div>
+    <div class="row"><span class="lbl" style="margin-left:20px">θ₁</span><input type="range" min="0" max="360" value="60" id="t1" style="flex:1"><span class="val" id="t1v">60°</span></div>
+    <div class="row"><span class="lbl" style="margin-left:20px">|z₁|</span><input type="range" min="1" max="9" value="5" id="r1" style="flex:1"><span class="val" id="r1v">5</span></div>
+  </div>
+  <div>
+    <div class="row"><span class="dot" style="background:#D85A30"></span><span class="lbl">z₂ — angle θ₂ = θ₁ − 180°</span></div>
+    <div class="row"><span class="lbl" style="margin-left:20px">|z₂|</span><input type="range" min="1" max="9" value="3" id="r2" style="flex:1"><span class="val" id="r2v">3</span></div>
+  </div>
+</div>
+
+<div style="margin-top:12px; padding:10px 14px; background:var(--color-background-secondary); border-radius:var(--border-radius-md); border:0.5px solid var(--color-border-tertiary); display:flex; gap:24px; flex-wrap:wrap;">
+  <span class="lbl">|z₁ − z₂| = <span class="val" id="diff">—</span></span>
+  <span class="lbl">|z₁| + |z₂| = <span class="val" id="sum">—</span></span>
+  <span class="lbl" id="eq" style="font-weight:500"></span>
+</div>
+
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+const cx = W/2, cy = H/2;
+const scale = 36;
+
+function deg2rad(d){ return d * Math.PI / 180; }
+
+function draw(){
+  const t1 = +document.getElementById('t1').value;
+  const r1 = +document.getElementById('r1').value;
+  const r2 = +document.getElementById('r2').value;
+  const t2 = t1 + 180;
+
+  document.getElementById('t1v').textContent = t1 + '°';
+  document.getElementById('r1v').textContent = r1;
+  document.getElementById('r2v').textContent = r2;
+
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const gridColor = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+  const axisColor = dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)';
+  const textColor = dark ? '#9c9a92' : '#888780';
+  const bg = dark ? '#1a1a18' : '#ffffff';
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 0.5;
+  for(let i = -9; i <= 9; i++){
+    ctx.beginPath(); ctx.moveTo(cx + i*scale, 0); ctx.lineTo(cx + i*scale, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, cy + i*scale); ctx.lineTo(W, cy + i*scale); ctx.stroke();
+  }
+
+  // Axes
+  ctx.strokeStyle = axisColor;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle = textColor;
+  ctx.font = '12px var(--font-sans, sans-serif)';
+  ctx.textAlign = 'center';
+  for(let i = -8; i <= 8; i++){
+    if(i === 0) continue;
+    ctx.fillText(i, cx + i*scale, cy + 14);
+    ctx.textAlign = 'right';
+    ctx.fillText(i === 0 ? '' : (i > 0 ? i+'i' : i+'i'), cx - 5, cy - i*scale + 4);
+    ctx.textAlign = 'center';
+  }
+  ctx.fillText('Re', W - 16, cy - 6);
+  ctx.textAlign = 'left';
+  ctx.fillText('Im', cx + 6, 14);
+
+  // Arc for θ1
+  ctx.strokeStyle = '#378ADD';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, 28, 0, -deg2rad(t1), t1 > 0);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Arc for θ2
+  ctx.strokeStyle = '#D85A30';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, 20, 0, -deg2rad(t2), t2 > 360);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  function drawPhasor(r, theta, color, label){
+    const rad = deg2rad(theta);
+    const ex = cx + r * scale * Math.cos(rad);
+    const ey = cy - r * scale * Math.sin(rad);
+
+    // Dashed projection lines
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(ex, cy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, ey); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Main phasor arrow
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    // Arrowhead
+    const ang = Math.atan2(ey - cy, ex - cx);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(ex, ey);
+    ctx.lineTo(ex - 10*Math.cos(ang-0.35), ey - 10*Math.sin(ang-0.35));
+    ctx.lineTo(ex - 10*Math.cos(ang+0.35), ey - 10*Math.sin(ang+0.35));
+    ctx.closePath();
+    ctx.fill();
+
+    // Tip dot
+    ctx.beginPath();
+    ctx.arc(ex, ey, 4, 0, 2*Math.PI);
+    ctx.fill();
+
+    // Label
+    const lx = cx + (r * scale + 18) * Math.cos(rad);
+    const ly = cy - (r * scale + 18) * Math.sin(rad);
+    ctx.fillStyle = color;
+    ctx.font = '500 14px var(--font-sans, sans-serif)';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, lx, ly + 5);
+  }
+
+  drawPhasor(r1, t1, '#378ADD', 'z₁');
+  drawPhasor(r2, t2, '#D85A30', 'z₂');
+
+  // Angle labels
+  ctx.fillStyle = '#378ADD';
+  ctx.font = '12px var(--font-sans, sans-serif)';
+  ctx.textAlign = 'left';
+  const a1mid = deg2rad(t1/2);
+  ctx.fillText('θ₁', cx + 34*Math.cos(a1mid), cy - 34*Math.sin(a1mid) + 4);
+
+  ctx.fillStyle = '#D85A30';
+  const t2r = t2 % 360;
+  const a2mid = deg2rad(t2r/2);
+  ctx.fillText('θ₂', cx + 26*Math.cos(a2mid) + 4, cy - 26*Math.sin(a2mid) + 4);
+
+  // Origin dot
+  ctx.fillStyle = dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.arc(cx, cy, 3, 0, 2*Math.PI); ctx.fill();
+
+  // Stats
+  const z1x = r1 * Math.cos(deg2rad(t1));
+  const z1y = r1 * Math.sin(deg2rad(t1));
+  const z2x = r2 * Math.cos(deg2rad(t2));
+  const z2y = r2 * Math.sin(deg2rad(t2));
+  const diff = Math.sqrt((z1x-z2x)**2 + (z1y-z2y)**2);
+  const sum = r1 + r2;
+  document.getElementById('diff').textContent = diff.toFixed(2);
+  document.getElementById('sum').textContent = sum.toFixed(2);
+  const eq = document.getElementById('eq');
+  const isEqual = Math.abs(diff - sum) < 0.01;
+  eq.textContent = isEqual ? '= equality holds!' : '< strict inequality';
+  eq.style.color = isEqual ? 'var(--color-text-success)' : 'var(--color-text-secondary)';
+}
+
+['t1','r1','r2'].forEach(id => document.getElementById(id).addEventListener('input', draw));
+draw();
+</script>
